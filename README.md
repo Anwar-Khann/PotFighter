@@ -91,8 +91,7 @@ Please note that this documentation is for educational purposes, and you should 
 
 ## Version History
 
-- **1.0.0 (Date):** Initial release.
+- **1.0.0 (14/11/23):** Initial release.
 
 ---
 
-Feel free to customize and expand this documentation based on your specific contract details and requirements.
