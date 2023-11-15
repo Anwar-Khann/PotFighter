@@ -3,7 +3,10 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-//  >>>>>>>>>  Developed by anwarservices22@gmail.com <<<<<<<<<
+//  >>>>>>>>>  Developed by anwarservices22@gmail.com <<<<<<<<<<<<
+//  >>>>>>>>>  Developed by zeeshanm.nawaz786@gmail.com <<<<<<<<<<
+//  >>>>>>>>>  Developed by mirzamuhammadbaig328@gmail.com <<<<<<<
+
 contract PotFighter is Ownable {
     uint256 public potFee = 1 ether;
     uint256 public rewardPerSecondPercent = 3;
@@ -27,6 +30,11 @@ contract PotFighter is Ownable {
         _;
     }
 
+    struct EarningsInfo {
+        address userAddress;
+        uint256 earnings;
+    }
+
     struct participant {
         address payable userAddress;
         uint256 startedAt; //THE TIME PLAYER ENTERD THE POT
@@ -41,18 +49,21 @@ contract PotFighter is Ownable {
         participant[] participants; //PLAYER'S IN THE POT
         bool claimingActive; //REWARD CLAIMING WHEN POT BALNCE RUNS OUT
         bool isEnded; //POT RUNNING STATUS WHETHER IT'S RUNNING OR NOT
-        uint256 participationFeee;//AMOUNT REQUIRED TO PARTICIPATE IN A POT
-        uint256 begining;//START OF THE POT
+        uint256 participationFeee;
+        uint256 begining;
         uint256 lifeTime; //DURATION OF THE POT
+        bool claimingFinished;
     }
 
     mapping(uint256 => Pot) public createdPots; //POTS CREATED OF ALL TIME BY ID
     mapping(uint256 => bool) public freezedPot; //POT FREEZING MONITOR
-    mapping(address => bool) public blackListedUser; //RESTRICE USER ACTIVITY
+    mapping(address => bool) public blackListedUser; //RESTRICED
 
     function createPot() external payable userBlackListed {
         Pot storage pot = createdPots[potId];
+
         require(msg.value == potFee, "pay fee to create Pot");
+
         pot.creator = msg.sender;
         pot.potBalance += msg.value; //ADD THE AMOUNT TO POT
         pot.begining = block.timestamp;
@@ -69,17 +80,15 @@ contract PotFighter is Ownable {
             })
         );
         pot.lifeTime = (block.timestamp + 21600);
+        // pot.lifeTime = (block.timestamp + 21600);
         potId++; //this line make sure that each pot has unique id
         emit PotCreated(msg.sender, msg.value, block.timestamp);
         emit PotJoined(msg.sender, msg.value, block.timestamp);
     }
 
-    function joinPot(uint256 _potId)
-        external
-        payable
-        potFreezed(_potId)
-        userBlackListed
-    {
+    function joinPot(
+        uint256 _potId
+    ) external payable potFreezed(_potId) userBlackListed {
         Pot storage pot = createdPots[_potId];
         require(block.timestamp < pot.lifeTime, "life ended activate claiming");
         require(!pot.isEnded, "pot ended");
@@ -200,7 +209,6 @@ contract PotFighter is Ownable {
         pot.potBalance += potBalanceSubmit;
     }
 
-   
     function activateClaiming(uint256 _potId) public {
         Pot storage pot = createdPots[_potId]; // Change memory to storage
         require(block.timestamp > pot.lifeTime, "pot isn't ended yet");
@@ -254,9 +262,14 @@ contract PotFighter is Ownable {
                     payable(msg.sender).transfer(pot.participants[i].reward);
                     pot.participants[i].reward = 0;
                     pot.participants[i].rewardCollected = true;
+
                     break;
                 }
             }
+        }
+        bool toSelect = allRewardClaimed(_potId);
+        if (toSelect) {
+            pot.claimingFinished = true;
         }
     }
 
@@ -296,47 +309,44 @@ contract PotFighter is Ownable {
         freezedPot[_potId] = false;
     }
 
-    function getPotParticipants(uint256 _potId)
-        external
-        view
-        returns (participant[] memory)
-    {
+    //FUNCTION TO GET POT PARTICIPANTS
+    function getPotParticipants(
+        uint256 _potId
+    ) external view returns (participant[] memory) {
         Pot storage pot = createdPots[_potId];
         return pot.participants;
     }
 
+    //FUNCTION TO GET POT BALANCE
     function getPotBalance(uint256 _potId) public view returns (uint256) {
         Pot storage pot = createdPots[_potId];
         uint256 balance = pot.potBalance;
         return balance;
     }
 
-    function userReward(uint256 potIdd, uint256 userIndex)
-        public
-        view
-        returns (uint256)
-    {
+    //FUNCTION TO CHECK USER REWARD
+    function userReward(
+        uint256 potIdd,
+        uint256 userIndex
+    ) public view returns (uint256) {
         Pot memory pot = createdPots[potIdd];
         participant memory participantt = pot.participants[userIndex];
         return participantt.reward;
     }
 
-    //PROFITABILITY MATRICS
-
-    function getPlayerEarnings(uint256 _potId)
-        external
-        view
-        returns (uint256[6] memory)
-    {
+    //FUNCTION TO GET PLAYER EARNINGS
+    function getPlayerEarnings(
+        uint256 _potId
+    ) external view returns (EarningsInfo[6] memory) {
         Pot storage pot = createdPots[_potId];
         uint256 currentSize = pot.participants.length;
 
         require(_potId > 0 && _potId <= potId, "Invalid Pot Id");
         require(currentSize > 0, "No participants in the pot");
 
-        uint256[6] memory earnings; // Array to store the earnings
+        EarningsInfo[6] memory earningsInfo; // Array to store the earnings and user addresses
 
-        // Calculate the earnings for the last 5 players
+        // Calculate the earnings and user addresses for the last 5 players
         uint256 startIndex;
         uint256 lastIndex;
 
@@ -345,38 +355,45 @@ contract PotFighter is Ownable {
             lastIndex = currentSize;
 
             for (uint256 i = startIndex; i < lastIndex; i++) {
-                earnings[i - startIndex] = pot.participants[i].reward;
+                earningsInfo[i - startIndex] = EarningsInfo({
+                    userAddress: pot.participants[i].userAddress,
+                    earnings: pot.participants[i].reward
+                });
             }
         } else {
             startIndex = 0;
             lastIndex = currentSize;
 
             for (uint256 i = startIndex; i < lastIndex; i++) {
-                earnings[i] = pot.participants[i].reward;
+                earningsInfo[i] = EarningsInfo({
+                    userAddress: pot.participants[i].userAddress,
+                    earnings: pot.participants[i].reward
+                });
             }
         }
 
-        // Calculate the earnings for the caller (the player who executes the function)
+        // Calculate the earnings and user address for the caller (the player who executes the function)
         for (uint256 i = 0; i < currentSize; i++) {
             if (pot.participants[i].userAddress == msg.sender) {
-                earnings[5] = pot.participants[i].reward;
+                earningsInfo[5] = EarningsInfo({
+                    userAddress: pot.participants[i].userAddress,
+                    earnings: pot.participants[i].reward
+                });
                 break;
             }
         }
 
-        return earnings;
+        return earningsInfo;
     }
 
     //ROUND STATISTICS
 
-    function getPotInfo(uint256 _potId)
+    function getPotInfo(
+        uint256 _potId
+    )
         external
         view
-        returns (
-            uint256 players,
-            uint256 startTime,
-            uint256 endTime
-        )
+        returns (uint256 players, uint256 startTime, uint256 endTime)
     {
         Pot storage pot = createdPots[_potId];
 
@@ -393,11 +410,10 @@ contract PotFighter is Ownable {
         return (players, startTime, endTime);
     }
 
-    function pushValue(uint256[] memory array, uint256 value)
-        internal
-        pure
-        returns (uint256[] memory)
-    {
+    function pushValue(
+        uint256[] memory array,
+        uint256 value
+    ) internal pure returns (uint256[] memory) {
         uint256[] memory newArray = new uint256[](array.length + 1);
         for (uint256 i = 0; i < array.length; i++) {
             newArray[i] = array[i];
@@ -406,19 +422,8 @@ contract PotFighter is Ownable {
         return newArray;
     }
 
-    function readParticipationFee(uint8 _potId)
-        external
-        view
-        returns (uint256)
-    {
-        return createdPots[_potId].participationFeee;
-    }
-
-    function isClaimingActive(uint8 _potId) external view returns (bool) {
-        return createdPots[_potId].claimingActive;
-    }
-
-    function allRewardClaimed(uint256 _potId) external view returns (bool) {
+    //FUNCTION TO CHECK IF ALL PLAYERS HAVE CLAIMED THERE REWARD
+    function allRewardClaimed(uint256 _potId) internal view returns (bool) {
         Pot storage pot = createdPots[_potId];
         require(_potId > 0 && _potId <= potId, "Invalid Pot Id");
 
@@ -433,6 +438,29 @@ contract PotFighter is Ownable {
         return true;
     }
 
+    function readParticipationFee(uint8 _potId) public view returns (uint256) {
+        return createdPots[_potId].participationFeee;
+    }
+
+    //FUNCTION TO CHECK IF POT HAS CLAIMING ACTIVATED
+    function isClaimingActive(uint8 _potId) public view returns (bool) {
+        return createdPots[_potId].claimingActive;
+    }
+
+    //FUNCTION TO CHECK POT LIFE
+    function isPotLifeEnded(uint8 _potId) public view returns (bool) {
+        bool condition = block.timestamp > createdPots[_potId].lifeTime
+            ? true
+            : false;
+        return condition;
+    }
+
+    //FUNCTION TO RETURN POT CREATOR
+    function isPotCreator(uint8 _potId) public view returns (address) {
+        return createdPots[_potId].creator;
+    }
+
+    //FUNCTION TO GET ALL POTS
     function getAllPots() public view returns (Pot[] memory) {
         // Initialize the length of the result array with potId - 1
         Pot[] memory allPots = new Pot[](potId > 0 ? potId - 1 : 0);
