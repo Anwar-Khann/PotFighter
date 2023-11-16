@@ -81,7 +81,7 @@ contract PotFighter is Ownable {
                 rewardCollected: false
             })
         );
-        pot.lifeTime = (block.timestamp + 200);
+        pot.lifeTime = (block.timestamp + 21600);
         // pot.lifeTime = (block.timestamp + 21600);
         potId++; //this line make sure that each pot has unique id
         emit PotCreated(msg.sender, msg.value, block.timestamp);
@@ -182,7 +182,7 @@ contract PotFighter is Ownable {
             );
             uint256 increaseInFee = feePercent(pot);
             pot.participationFeee += increaseInFee;
-            pot.lifeTime += 10;
+            pot.lifeTime += 60;
             emit PotJoined(msg.sender, msg.value, block.timestamp);
         }
     }
