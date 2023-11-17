@@ -63,8 +63,8 @@ contract PotFighter is Ownable {
     function createPot() external payable userBlackListed {
         Pot storage pot = createdPots[potId];
 
-        require(msg.value == potFee, "pay fee to create Pot");
-        require(!potCreation,"POT CREATION IS FREEZED");
+        require(msg.value == potFee, "pay exact fee to create Pot");
+        require(!potCreation, "POT CREATION IS FREEZED");
 
         pot.creator = msg.sender;
         pot.potBalance += msg.value; //ADD THE AMOUNT TO POT
@@ -82,7 +82,6 @@ contract PotFighter is Ownable {
             })
         );
         pot.lifeTime = (block.timestamp + 21600);
-        // pot.lifeTime = (block.timestamp + 21600);
         potId++; //this line make sure that each pot has unique id
         emit PotCreated(msg.sender, msg.value, block.timestamp);
         emit PotJoined(msg.sender, msg.value, block.timestamp);
@@ -97,7 +96,7 @@ contract PotFighter is Ownable {
         Pot storage pot = createdPots[_potId];
         require(
             msg.value == pot.participationFeee,
-            "Pay the fee to join the pot"
+            "Pay the exact participation fee to join the pot"
         );
         require(block.timestamp < pot.lifeTime, "life ended activate claiming");
         require(!pot.isEnded, "pot ended");
@@ -106,13 +105,15 @@ contract PotFighter is Ownable {
             pot.potBalance >= 0.001 ether,
             "Pot balance isn't valid to play further"
         );
-        
 
         uint256 currentSize = pot.participants.length;
-        participant storage p = pot.participants[currentSize - 1];
-        p.endedAt = block.number;
-        uint256 blocksElapsed = p.endedAt - p.startedAt;
-        p.durationPlayed += blocksElapsed;
+        participant storage previousParticipant = pot.participants[
+            currentSize - 1
+        ];
+        previousParticipant.endedAt = block.number;
+        uint256 blocksElapsed = previousParticipant.endedAt -
+            previousParticipant.startedAt;
+        previousParticipant.durationPlayed += blocksElapsed;
         bool rewardMonitor;
 
         for (uint256 i = 0; i < blocksElapsed; i++) {
@@ -122,12 +123,12 @@ contract PotFighter is Ownable {
             // Check if the reward calculation exceeds the pot balance
             if (percentPerSecond > pot.potBalance) {
                 rewardMonitor = true;
-                p.reward += pot.potBalance;
+                previousParticipant.reward += pot.potBalance;
                 break;
             }
 
             // Calculate reward for the current second
-            p.reward += percentPerSecond;
+            previousParticipant.reward += percentPerSecond;
             pot.potBalance -= percentPerSecond;
         }
 
@@ -149,11 +150,12 @@ contract PotFighter is Ownable {
 
                 for (uint256 i = startIndex; i < lastIndex; i++) {
                     uint256 toSend = (playerReward *
-                        distribution[i - startIndex]) / 100; // Changed this line
+                        distribution[i - startIndex]) / 100;
 
                     payable(pot.participants[i].userAddress).transfer(toSend);
                 }
                 pot.participants[startIndex].rewardCollected = true;
+                pot.participants[startIndex].reward = 0;
             } else if (currentSize == 5) {
                 startIndex = 0;
                 lastIndex = currentSize;
@@ -161,12 +163,13 @@ contract PotFighter is Ownable {
                 for (uint256 i = startIndex; i < lastIndex; i++) {
                     payable(pot.participants[i].userAddress).transfer(
                         (playerRewardFor * distribution[i - startIndex]) / 100
-                    ); // Changed this line
+                    );
                     playerRewardFor -=
                         (playerRewardFor * distribution[i]) /
                         100;
                 }
                 pot.participants[startIndex].rewardCollected = true;
+                pot.participants[startIndex].reward = 0;
             }
 
             // Create a new participant
@@ -264,24 +267,18 @@ contract PotFighter is Ownable {
         uint256 size = pot.participants.length;
         for (uint256 i = 0; i < size; i++) {
             if (pot.participants[i].userAddress == msg.sender) {
-                // require(pot.participants[i].reward != 0,"already claimed reward");
-                if(pot.participants[i].reward == 0){
-                    revert("already claimed reward");
-                }
                 hasJoined = true;
                 if (pot.participants[i].rewardCollected) {
                     continue;
                 } else {
-                    // require(pot.participants[i].reward != 0,"already claimed reward");
                     payable(msg.sender).transfer(pot.participants[i].reward);
                     pot.participants[i].reward = 0;
                     pot.participants[i].rewardCollected = true;
-
                     break;
                 }
             }
         }
-        require(hasJoined,"you haven't joined the pot");
+        require(hasJoined, "you haven't joined the pot");
         bool toSelect = allRewardClaimed(_potId);
         if (toSelect) {
             pot.claimingFinished = true;
@@ -311,33 +308,32 @@ contract PotFighter is Ownable {
     }
 
     //FUNCTION TO FREZE POT CREATION
-    function freezePotCreation()public onlyOwner{
-        require(!potCreation,"pot creation already freezed");
+    function freezePotCreation() public onlyOwner {
+        require(!potCreation, "pot creation already freezed");
         potCreation = true;
     }
 
     //FUNCTION TO UNFREEZE POT CREATION
-     function unfreezePotCreation()public onlyOwner{
-        require(potCreation,"pot creation already unfreezed");
+    function unfreezePotCreation() public onlyOwner {
+        require(potCreation, "pot creation already unfreezed");
         potCreation = false;
     }
 
     //FUNCTION TO WITHDRAW EXCESS FUNDS
     function withdrawAccessFunds() external onlyOwner {
-    // Check if all pots have finished claiming
-    for (uint256 i = 1; i < potId; i++) {
-        if (!createdPots[i].claimingFinished) {
-            revert("Not all pots have finished claiming");
+        // Check if all pots have finished claiming
+        for (uint256 i = 1; i < potId; i++) {
+            if (!createdPots[i].claimingFinished) {
+                revert("Not all pots have finished claiming");
+            }
         }
+
+        // Transfer the remaining funds to the contract owner
+        uint256 remainingFunds = address(this).balance;
+        require(remainingFunds > 0, "No funds to withdraw");
+
+        payable(owner()).transfer(remainingFunds);
     }
-
-    // Transfer the remaining funds to the contract owner
-    uint256 remainingFunds = address(this).balance;
-    require(remainingFunds > 0, "No funds to withdraw");
-
-    payable(owner()).transfer(remainingFunds);
-}
-
 
     //FUNCTION TO FREEZE POT
     function freezePot(uint256 _potId) public onlyOwner {
