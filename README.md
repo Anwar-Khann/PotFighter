@@ -92,7 +92,7 @@ Please note that this documentation is for educational purposes, and you should 
 ## Version History
 
 - **1.0.0 (14/11/23):** Initial release.
-- **1.2.0 (18/11/23):** final release.
+- **1.2.0 (Nov-17-2023 07:43:06 PM +UTC):** final release.
 
 ---
 
