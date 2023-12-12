@@ -4,8 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 //  >>>>>>>>>  Developed by anwarservices22@gmail.com <<<<<<<<<<<<
-//  >>>>>>>>>  Developed by zeeshanm.nawaz786@gmail.com <<<<<<<<<<
-//  >>>>>>>>>  Developed by mirzamuhammadbaig328@gmail.com <<<<<<<
+
 
 contract PotFighter is Ownable {
     uint256 public potFee = 1 ether;
